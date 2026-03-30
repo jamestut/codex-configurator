@@ -13,9 +13,9 @@ python3 config_codex.py
 Controls:
 
 - Up/down: move between rows
-- Left/right: change model on the model row
+- Enter on `Model`: open the searchable model picker
 - Space: toggle multi-agent or an extra instruction
-- Enter: confirm
+- Enter on any other row: confirm
 - `q` or `Esc`: cancel
 - `a`: select all extra instructions
 - `n`: clear all extra instructions

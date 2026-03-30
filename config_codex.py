@@ -305,6 +305,9 @@ class BuilderUI:
             if key in (ord("q"), ord("Q"), 27):
                 return None
             if key in (curses.KEY_ENTER, 10, 13):
+                if self.cursor == 0:
+                    self._open_model_dialog(stdscr)
+                    continue
                 return Selection(
                     model=self.models[self.model_index],
                     multi_agent_enabled=self.multi_agent_enabled,
@@ -322,10 +325,6 @@ class BuilderUI:
                 self.cursor = max(0, self.cursor - self._page_size(stdscr))
             elif key == curses.KEY_NPAGE:
                 self.cursor = min(self._row_count() - 1, self.cursor + self._page_size(stdscr))
-            elif key in (curses.KEY_LEFT, ord("h"), ord("H")):
-                self._move_model(-1)
-            elif key in (curses.KEY_RIGHT, ord("l"), ord("L")):
-                self._move_model(1)
             elif key == ord(" "):
                 self._toggle_current_row()
             elif key in (ord("a"), ord("A")):
@@ -347,7 +346,7 @@ class BuilderUI:
         lines = [
             "AGENTS.md Generator",
             *textwrap.wrap(f"Target: {self.target_path}", wrap_width),
-            "Up/down move, left/right change model, space toggle, Enter confirm",
+            "Up/down move, Enter on Model opens search, space toggle, Enter elsewhere confirm",
             "q cancel, a select all extras, n clear all extras",
             "",
         ]
@@ -355,11 +354,6 @@ class BuilderUI:
 
     def _header_height(self, width: int) -> int:
         return len(self._header_lines(width))
-
-    def _move_model(self, delta: int) -> None:
-        if self.cursor != 0 or not self.models:
-            return
-        self.model_index = (self.model_index + delta) % len(self.models)
 
     def _toggle_current_row(self) -> None:
         if self.cursor == 1:
@@ -372,13 +366,135 @@ class BuilderUI:
     def _rows(self) -> List[str]:
         model = self.models[self.model_index]
         rows = [
-            f"Model: < {model.name} >",
+            f"Model: {model.name} (press Enter to search)",
             f"[{'x' if self.multi_agent_enabled else ' '}] Enable multi agent",
         ]
         for instruction in self.extra_instructions:
             marker = "x" if instruction.selected else " "
             rows.append(f"[{marker}] {instruction.index}. {instruction.title}")
         return rows
+
+    def _open_model_dialog(self, stdscr: "curses._CursesWindow") -> None:
+        query = ""
+        active_index = self.model_index
+        offset = 0
+
+        while True:
+            filtered_indexes = self._filtered_model_indexes(query)
+            if filtered_indexes and active_index not in filtered_indexes:
+                active_index = filtered_indexes[0]
+
+            active_position = (
+                filtered_indexes.index(active_index)
+                if filtered_indexes and active_index in filtered_indexes
+                else 0
+            )
+            offset = self._draw_model_dialog(
+                stdscr=stdscr,
+                query=query,
+                filtered_indexes=filtered_indexes,
+                active_position=active_position,
+                offset=offset,
+            )
+            key = stdscr.getch()
+
+            if key in (ord("q"), ord("Q"), 27):
+                return
+            if key in (curses.KEY_ENTER, 10, 13):
+                if filtered_indexes:
+                    self.model_index = active_index
+                    return
+            elif key in (curses.KEY_UP, ord("k"), ord("K")) and filtered_indexes:
+                active_position = max(0, active_position - 1)
+                active_index = filtered_indexes[active_position]
+            elif key in (curses.KEY_DOWN, ord("j"), ord("J")) and filtered_indexes:
+                active_position = min(len(filtered_indexes) - 1, active_position + 1)
+                active_index = filtered_indexes[active_position]
+            elif key == curses.KEY_PPAGE and filtered_indexes:
+                page_size = self._dialog_page_size(stdscr)
+                active_position = max(0, active_position - page_size)
+                active_index = filtered_indexes[active_position]
+            elif key == curses.KEY_NPAGE and filtered_indexes:
+                page_size = self._dialog_page_size(stdscr)
+                active_position = min(len(filtered_indexes) - 1, active_position + page_size)
+                active_index = filtered_indexes[active_position]
+            elif key in (curses.KEY_BACKSPACE, 127, 8):
+                query = query[:-1]
+            elif 32 <= key <= 126:
+                query += chr(key)
+
+    def _filtered_model_indexes(self, query: str) -> List[int]:
+        if not query:
+            return list(range(len(self.models)))
+
+        normalized_query = query.lower()
+        return [
+            index
+            for index, model in enumerate(self.models)
+            if normalized_query in model.name.lower()
+        ]
+
+    def _dialog_page_size(self, stdscr: "curses._CursesWindow") -> int:
+        height, _ = stdscr.getmaxyx()
+        return max(1, min(8, height - 10))
+
+    def _draw_model_dialog(
+        self,
+        stdscr: "curses._CursesWindow",
+        query: str,
+        filtered_indexes: Sequence[int],
+        active_position: int,
+        offset: int,
+    ) -> int:
+        self._draw(stdscr)
+        height, width = stdscr.getmaxyx()
+
+        page_size = self._dialog_page_size(stdscr)
+        offset = min(offset, max(0, len(filtered_indexes) - page_size))
+        if filtered_indexes:
+            if active_position < offset:
+                offset = active_position
+            elif active_position >= offset + page_size:
+                offset = active_position - page_size + 1
+        else:
+            offset = 0
+
+        list_rows = max(1, min(page_size, len(filtered_indexes) or 1))
+        max_dialog_height = max(6, height - 2)
+        max_dialog_width = max(20, width - 2)
+        dialog_height = min(max_dialog_height, max(8, list_rows + 6))
+        dialog_width = min(max_dialog_width, 72)
+        top = max(0, (height - dialog_height) // 2)
+        left = max(0, (width - dialog_width) // 2)
+
+        dialog = curses.newwin(dialog_height, dialog_width, top, left)
+        dialog.keypad(True)
+        dialog.erase()
+        dialog.box()
+
+        title = "Select model"
+        search_label = f"Search: {query}" if query else "Search: "
+        help_line = "Type to filter, Enter choose, Esc cancel"
+        dialog.addnstr(1, 2, title, dialog_width - 4, curses.A_BOLD)
+        dialog.addnstr(2, 2, search_label, dialog_width - 4)
+        dialog.addnstr(3, 2, help_line, dialog_width - 4)
+
+        list_top = 4
+        if filtered_indexes:
+            for row in range(list_rows):
+                model_position = offset + row
+                if model_position >= len(filtered_indexes):
+                    break
+                model = self.models[filtered_indexes[model_position]]
+                attr = self.highlight_attr if model_position == active_position else curses.A_NORMAL
+                dialog.addnstr(list_top + row, 2, model.name, dialog_width - 4, attr)
+        else:
+            dialog.addnstr(list_top, 2, "No models match your search.", dialog_width - 4)
+
+        status = f"{len(filtered_indexes)} match{'es' if len(filtered_indexes) != 1 else ''}"
+        dialog.addnstr(dialog_height - 2, 2, status, dialog_width - 4)
+        dialog.refresh()
+        return offset
 
     def _draw(self, stdscr: "curses._CursesWindow") -> None:
         stdscr.erase()
