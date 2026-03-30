@@ -36,7 +36,7 @@ class ExtraInstruction:
     index: int
     path: Path
     title: str
-    selected: bool = True
+    selected: bool = False
 
 
 @dataclass(frozen=True)
