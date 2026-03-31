@@ -509,7 +509,7 @@ class BuilderUI:
                 if self.show_skills
                 else "Up/down move, Enter on Model opens search, space toggle"
             ),
-            "Enter elsewhere confirm, q cancel",
+            "Enter elsewhere confirm, q/Esc cancel",
             "a select all extras, n clear all extras",
             "",
         ]
@@ -685,7 +685,7 @@ class BuilderUI:
 
         title = "Select model"
         search_label = f"Search: {query}" if query else "Search: "
-        help_line = "Type to filter, Enter choose, Esc cancel"
+        help_line = "Type to filter, Enter choose, q/Esc cancel"
         dialog.addnstr(1, 2, title, dialog_width - 4, curses.A_BOLD)
         dialog.addnstr(2, 2, search_label, dialog_width - 4)
         dialog.addnstr(3, 2, help_line, dialog_width - 4)
@@ -744,7 +744,7 @@ class BuilderUI:
         dialog.addnstr(
             2,
             2,
-            "Space toggle, a all, n none, Enter save, Esc cancel",
+            "Space toggle, a all, n none, Enter save, q/Esc cancel",
             dialog_width - 4,
         )
 
