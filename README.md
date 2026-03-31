@@ -1,6 +1,6 @@
 # jamestut's Personal Codex Configurator
 
-This program builds `AGENTS.md` for Codex from a fixed base instruction set plus optional extra instruction files. It also keeps the selected Codex model and multi-agent setting in sync with your Codex `config.toml`.
+This program builds `AGENTS.md` for Codex from a fixed base instruction set plus optional extra instruction files. It also keeps the selected Codex model and multi-agent setting in sync with your Codex `config.toml`, and can optionally sync selected skills into your Codex skills directory.
 
 ## Usage
 
@@ -14,6 +14,7 @@ Controls:
 
 - Up/down: move between rows
 - Enter on `Model`: open the searchable model picker
+- Enter on `Skills`: open the skills checklist when `skills_path` is configured
 - Space: toggle multi-agent or an extra instruction
 - Enter on any other row: confirm
 - `q` or `Esc`: cancel
@@ -26,7 +27,7 @@ Non-interactive mode:
 python3 config_codex.py --all
 ```
 
-`--all` skips the TUI, uses the current defaults resolved from `config.toml`, and includes all valid extra instruction files.
+`--all` skips the TUI, uses the current defaults resolved from `config.toml`, includes all valid extra instruction files, and enables all valid skills when `skills_path` is configured.
 
 ## Files and folders
 
@@ -35,6 +36,7 @@ python3 config_codex.py --all
 - `config.example.json`: example configuration
 - `base_instructions/`: built-in instruction fragments
 - `extra_instructions/`: optional user-selectable markdown instruction files
+- `<codex_dir_path>/skills`: symlinked Codex skills managed from the optional skills selector
 
 The generated output is always written to:
 
@@ -51,6 +53,7 @@ Create `config.json` from `config.example.json` and edit it as needed:
 ```json
 {
   "codex_dir_path": "~/.codex",
+  "skills_path": "/home/jamesn/repo/ai-tools/ai-agents-helper/codex/skills",
   "models": [
     {
       "name": "gpt-5.4",
@@ -71,9 +74,12 @@ Create `config.json` from `config.example.json` and edit it as needed:
 Rules:
 
 - `models` must contain at least one model.
+- `skills_path` is optional.
 - `name`, `support_apply_patch`, and `base_url` are required for each model.
 - `context_window` is optional.
 - `env_key` is optional.
+
+When `skills_path` is configured, the script scans its immediate child directories and treats a folder as a valid skill only when it contains `SKILL.md`.
 
 ## Extra instructions
 
@@ -86,6 +92,28 @@ Each extra instruction file must start with a heading subject line on the first 
 ```
 
 That heading text is what appears in the checklist. Files are listed in filename order.
+
+## Skills
+
+When `skills_path` is configured, the main screen shows a `Skills` row between `Enable multi agent` and the extra-instruction checklist.
+
+Press Enter on that row to open the skills dialog. Inside the dialog:
+
+- Up/down: move between skills
+- Space: toggle the highlighted skill
+- Enter: save the skill selection and return
+- `q` or `Esc`: cancel changes and return
+- `a`: select all valid skills
+- `n`: clear all skills
+
+Skills are listed by folder name in filename order. Existing enabled skills are preselected by reading symlinks from `<codex_dir_path>/skills`.
+
+After confirmation, the script reconciles `<codex_dir_path>/skills`:
+
+- selected skills are symlinked to the configured source directories
+- stale or unselected symlinks are removed, even if they point somewhere else
+- existing non-symlink files or directories are left alone
+- if a selected skill path already exists as a non-symlink, the script stops with an error instead of deleting it
 
 ## How output is built
 
@@ -115,3 +143,5 @@ The initial UI defaults are loaded from `<codex_dir_path>/config.toml`:
 - selected model uses top-level `model`
 - if that model is not present in `config.json`, the first configured model is used
 - `Enable multi agent` uses `[features].multi_agent`, defaulting to `false` when missing
+
+Skill defaults are loaded from existing symlinks in `<codex_dir_path>/skills`.

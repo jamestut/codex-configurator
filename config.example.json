@@ -1,5 +1,6 @@
 {
-  "codex_dir_path": "~/.codex",
+  "codex_dir_path": "/home/user/.codex",
+  "skills_path": "/home/user/Documents/codex/skills",
   "models": [
     {
       "name": "gpt-5.4",
