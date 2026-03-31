@@ -14,6 +14,7 @@ from typing import List, Optional, Sequence, Tuple
 
 
 SECTION_HEADER_RE = re.compile(r"^\s*\[([^\]]+)\]\s*(?:#.*)?$")
+STATE_SELECTED_EXTRA_FILES_KEY = "selected_extra_instruction_files"
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class ExtraInstruction:
 class CodexState:
     model_name: Optional[str]
     multi_agent_enabled: bool
+    selected_extra_instruction_files: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -209,6 +211,79 @@ def parse_toml_state(config_toml_path: Path) -> CodexState:
         model_name=model_name,
         multi_agent_enabled=multi_agent_enabled,
     )
+
+
+def load_json_state(state_json_path: Path, codex_state: CodexState) -> CodexState:
+    return CodexState(
+        model_name=codex_state.model_name,
+        multi_agent_enabled=codex_state.multi_agent_enabled,
+        selected_extra_instruction_files=load_selected_extra_instruction_files(
+            state_json_path
+        ),
+    )
+
+
+def load_selected_extra_instruction_files(state_json_path: Path) -> Tuple[str, ...]:
+    if not state_json_path.is_file():
+        return ()
+
+    try:
+        raw_state = json.loads(state_json_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ()
+
+    if not isinstance(raw_state, dict):
+        return ()
+
+    raw_selected = raw_state.get(STATE_SELECTED_EXTRA_FILES_KEY)
+    if not isinstance(raw_selected, list):
+        return ()
+
+    selected_files: List[str] = []
+    seen_files: set[str] = set()
+    for value in raw_selected:
+        if not isinstance(value, str):
+            continue
+        file_name = Path(value).name.strip()
+        if not file_name or file_name in seen_files:
+            continue
+        selected_files.append(file_name)
+        seen_files.add(file_name)
+
+    return tuple(selected_files)
+
+
+def write_json_state(
+    state_json_path: Path,
+    selected_extra_instruction_files: Sequence[str],
+) -> None:
+    unique_files: List[str] = []
+    seen_files: set[str] = set()
+    for value in selected_extra_instruction_files:
+        file_name = Path(value).name.strip()
+        if not file_name or file_name in seen_files:
+            continue
+        unique_files.append(file_name)
+        seen_files.add(file_name)
+
+    state_json_path.parent.mkdir(parents=True, exist_ok=True)
+    state_json_path.write_text(
+        json.dumps(
+            {STATE_SELECTED_EXTRA_FILES_KEY: unique_files},
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def apply_saved_extra_instruction_selection(
+    extra_instructions: Sequence[ExtraInstruction],
+    selected_extra_instruction_files: Sequence[str],
+) -> None:
+    selected_file_names = set(selected_extra_instruction_files)
+    for instruction in extra_instructions:
+        instruction.selected = instruction.path.name in selected_file_names
 
 
 def parse_toml_key_value(stripped_line: str) -> Optional[Tuple[str, str]]:
@@ -562,6 +637,11 @@ def choose_selection(
             extra_instructions=list(extra_instructions),
         )
 
+    apply_saved_extra_instruction_selection(
+        extra_instructions,
+        codex_state.selected_extra_instruction_files,
+    )
+
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         raise SystemExit("Error: An interactive terminal is required unless you pass --all.")
 
@@ -789,10 +869,11 @@ def is_active_key_line(line: str, key: str) -> bool:
 def main() -> int:
     args = parse_args()
     base_dir = script_dir()
+    state_json_path = base_dir / "state.json"
     config = parse_config(base_dir / "config.json")
     target_path = config.codex_dir_path / "AGENTS.md"
     config_toml_path = config.codex_dir_path / "config.toml"
-    codex_state = parse_toml_state(config_toml_path)
+    codex_state = load_json_state(state_json_path, parse_toml_state(config_toml_path))
     extra_instructions = load_extra_instructions(base_dir / "extra_instructions")
     selection = choose_selection(
         config=config,
@@ -816,6 +897,11 @@ def main() -> int:
         env_key=selection.model.env_key,
         multi_agent_enabled=selection.multi_agent_enabled,
     )
+    if not args.all:
+        write_json_state(
+            state_json_path,
+            [instruction.path.name for instruction in selection.extra_instructions],
+        )
 
     print(f"Successfully generated {target_path}")
     print(f"Updated {config_toml_path}")

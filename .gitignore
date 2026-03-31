@@ -1,4 +1,5 @@
 /config.json
+/state.json
 /.codex
 /extra_instructions
 *.pyc
