@@ -51,13 +51,11 @@ Create `config.json` from `config.example.json` and edit it as needed:
   "models": [
     {
       "name": "gpt-5.4",
-      "support_apply_patch": true,
       "base_url": "https://litellm-proxy.example.net",
       "env_key": "OPENAI_API_KEY"
     },
     {
       "name": "gemini-3.1-pro-preview",
-      "support_apply_patch": false,
       "context_window": 256000,
       "base_url": "https://litellm-proxy.example.net"
     }
@@ -69,7 +67,7 @@ Rules:
 
 - `models` must contain at least one model.
 - `skills_path` is optional.
-- `name`, `support_apply_patch`, and `base_url` are required for each model.
+- `name` and `base_url` are required for each model.
 - `context_window` is optional.
 - `env_key` is optional.
 
@@ -114,9 +112,8 @@ After confirmation, the script reconciles `<codex_dir_path>/skills`:
 The generated `AGENTS.md` always uses this order:
 
 1. `base_instructions/general.md`
-2. `base_instructions/apply_patch.md` only when the selected model has `"support_apply_patch": false`
-3. `base_instructions/multi_agent.md` only when `Enable multi agent` is checked
-4. Checked files from `extra_instructions/`
+2. `base_instructions/multi_agent.md` only when `Enable multi agent` is checked
+3. Checked files from `extra_instructions/`
 
 ## Codex config sync
 
