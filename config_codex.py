@@ -71,22 +71,12 @@ def parse_args() -> argparse.Namespace:
         description="Build an AGENTS.md file from base and extra instructions."
     )
     parser.add_argument(
-        "--all",
-        action="store_true",
-        help=(
-            "use current defaults, include all extra instructions, and enable all "
-            "valid skills without opening the TUI"
-        ),
-    )
-    parser.add_argument(
         "--edit",
         "-e",
         action="store_true",
         help="open config.json in $EDITOR and exit",
     )
     args = parser.parse_args()
-    if args.edit and args.all:
-        parser.error("--edit and --all are mutually exclusive")
     return args
 
 
@@ -853,16 +843,8 @@ def choose_selection(
     extra_instructions: Sequence[ExtraInstruction],
     enabled_skills_dir: Path,
     target_path: Path,
-    select_all: bool,
 ) -> Optional[Selection]:
     default_model = choose_default_model(config, codex_state)
-    if select_all:
-        return Selection(
-            model=default_model,
-            multi_agent_enabled=codex_state.multi_agent_enabled,
-            skills=list(skills),
-            extra_instructions=list(extra_instructions),
-        )
 
     apply_saved_extra_instruction_selection(
         extra_instructions,
@@ -871,7 +853,7 @@ def choose_selection(
     apply_saved_skill_selection(skills, enabled_skills_dir)
 
     if not sys.stdin.isatty() or not sys.stdout.isatty():
-        raise SystemExit("Error: An interactive terminal is required unless you pass --all.")
+        raise SystemExit("Error: An interactive terminal is required.")
 
     try:
         return BuilderUI(
@@ -1156,7 +1138,6 @@ def main() -> int:
         extra_instructions=extra_instructions,
         enabled_skills_dir=enabled_skills_dir,
         target_path=target_path,
-        select_all=args.all,
     )
 
     if selection is None:
@@ -1175,8 +1156,7 @@ def main() -> int:
     )
     if config.skills_path is not None:
         sync_selected_skills(enabled_skills_dir, selection.skills)
-    if not args.all:
-        write_json_state(
+    write_json_state(
             state_json_path,
             [instruction.path.name for instruction in selection.extra_instructions],
         )

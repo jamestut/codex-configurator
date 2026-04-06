@@ -30,5 +30,5 @@ Local-only files and directories are ignored by git:
 
 ## Validation
 
-- For non-interactive smoke tests, run `python3 config_codex.py --all`.
 - If you change config parsing, output rendering, or README-described behavior, update `README.md` in the same change.
+- Only validate statically (e.g. type/schema checks, linting); do not run the script or execute generated output as part of validation.

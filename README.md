@@ -21,13 +21,6 @@ Controls:
 - `a`: select all extra instructions
 - `n`: clear all extra instructions
 
-Non-interactive mode:
-
-```bash
-python3 config_codex.py --all
-```
-
-`--all` skips the TUI, uses the current defaults resolved from `config.toml`, includes all valid extra instruction files, and enables all valid skills when `skills_path` is configured.
 
 ## Files and folders
 
