@@ -460,6 +460,8 @@ class BuilderUI:
                 if self.show_skills and self.cursor == self._skills_row_index():
                     self._open_skills_dialog(stdscr)
                     continue
+                self._toggle_current_row()
+            if key in (ord("s"), ord("S")):
                 return Selection(
                     model=self.models[self.model_index],
                     multi_agent_enabled=self.multi_agent_enabled,
@@ -506,12 +508,9 @@ class BuilderUI:
             "AGENTS.md Generator",
             *textwrap.wrap(f"Target: {self.target_path}", wrap_width),
             (
-                "Up/down move, Enter on Model opens search, "
-                "Enter on Skills manages skills, space toggle"
-                if self.show_skills
-                else "Up/down move, Enter on Model opens search, space toggle"
+                "Up/down move, Enter toggle/open submenu, space toggle"
             ),
-            "Enter elsewhere confirm, q/Esc cancel",
+            "s confirm/save, q/Esc cancel",
             "a select all extras, n clear all extras",
             "",
         ]

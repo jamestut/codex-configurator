@@ -15,8 +15,9 @@ Controls:
 - Up/down: move between rows
 - Enter on `Model`: open the searchable model picker
 - Enter on `Skills`: open the skills checklist when `skills_path` is configured
-- Space: toggle multi-agent or an extra instruction
-- Enter on any other row: confirm
+- Space: toggle options
+- Enter: toggle options or open submenu
+- `s`: confirm and save
 - `q` or `Esc`: cancel
 - `a`: select all extra instructions
 - `n`: clear all extra instructions
