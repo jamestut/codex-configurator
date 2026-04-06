@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import curses
 import json
+import os
+import subprocess
 import re
+import shlex
 import sys
 import textwrap
 from dataclasses import dataclass
@@ -75,7 +78,16 @@ def parse_args() -> argparse.Namespace:
             "valid skills without opening the TUI"
         ),
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--edit",
+        "-e",
+        action="store_true",
+        help="open config.json in $EDITOR and exit",
+    )
+    args = parser.parse_args()
+    if args.edit and args.all:
+        parser.error("--edit and --all are mutually exclusive")
+    return args
 
 
 def script_dir() -> Path:
@@ -1116,6 +1128,18 @@ def is_active_key_line(line: str, key: str) -> bool:
 
 def main() -> int:
     args = parse_args()
+
+    if args.edit:
+        editor = os.environ.get("EDITOR")
+        if not editor:
+            print("Error: $EDITOR is not set.", file=sys.stderr)
+            return 1
+        config_path = script_dir() / "config.json"
+        editor_cmd = shlex.split(editor) + [str(config_path)]
+        print("Opening editor ...")
+        result = subprocess.run(editor_cmd)
+        return result.returncode
+
     base_dir = script_dir()
     state_json_path = base_dir / "state.json"
     config = parse_config(base_dir / "config.json")
