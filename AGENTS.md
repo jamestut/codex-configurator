@@ -1,11 +1,5 @@
 # Repo Guide
 
-## Purpose
-
-`AGENTS.md` is the instruction file Codex reads from a project or Codex home directory to learn repo-specific working rules, constraints, and preferences before it edits code.
-
-This repo builds a Codex `AGENTS.md` from checked-in base instruction fragments plus optional local extra instructions, then syncs the selected model and multi-agent flag into Codex `config.toml`.
-
 Main entrypoint: `config_codex.py`.
 
 ## Important Files
