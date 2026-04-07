@@ -795,11 +795,9 @@ class BuilderUI:
             dialog.addnstr(list_top + row, 2, line, dialog_width - 4, attr)
 
         selected_count = len(selected_names)
-        parts = [f"System skills: {'on' if system_skills_on else 'off'}"]
         if self.skills:
-            parts.append(f"{selected_count}/{len(self.skills)} skills selected")
-        status = " | ".join(parts)
-        dialog.addnstr(dialog_height - 2, 2, status, dialog_width - 4)
+            status = f"{selected_count}/{len(self.skills)} skills selected"
+            dialog.addnstr(dialog_height - 2, 2, status, dialog_width - 4)
         dialog.refresh()
         return offset
 
@@ -830,8 +828,6 @@ class BuilderUI:
             instruction.selected for instruction in self.extra_instructions
         )
         footer_parts: List[str] = []
-        sys_status = "on" if self.system_skills_enabled else "off"
-        footer_parts.append(f"System skills: {sys_status}")
         if self.skills:
             selected_skill_count = sum(skill.selected for skill in self.skills)
             footer_parts.append(
@@ -841,8 +837,6 @@ class BuilderUI:
             footer_parts.append(
                 f"{selected_count}/{len(self.extra_instructions)} extras selected"
             )
-        else:
-            footer_parts.append("No extra instructions found")
         footer = " | ".join(footer_parts)
         stdscr.addnstr(height - 1, 0, footer, width - 1)
         stdscr.refresh()
