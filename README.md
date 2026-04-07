@@ -14,13 +14,13 @@ Controls:
 
 - Up/down: move between rows
 - Enter on `Model`: open the searchable model picker
-- Enter on `Skills`: open the skills checklist when `skills_path` is configured
+- Enter on `Skills`: open the skills dialog (always visible)
 - Space: toggle options
 - Enter: toggle options or open submenu
 - `s`: confirm and save
 - `q` or `Esc`: cancel
-- `a`: select all extra instructions
-- `n`: clear all extra instructions
+- `a`: select all (extra instructions and System skills)
+- `n`: clear all (extra instructions and System skills)
 
 
 ## Files and folders
@@ -87,18 +87,18 @@ That heading text is what appears in the checklist. Files are listed in filename
 
 ## Skills
 
-When `skills_path` is configured, the main screen shows a `Skills` row between `Enable multi agent` and the extra-instruction checklist.
+The main screen always shows a `Skills` row between `Enable multi agent` and the extra-instruction checklist.
 
 Press Enter on that row to open the skills dialog. Inside the dialog:
 
-- Up/down: move between skills
+- "System skills" is always the first item at the top of the dialog
 - Space: toggle the highlighted skill
 - Enter: save the skill selection and return
 - `q` or `Esc`: cancel changes and return
-- `a`: select all valid skills
-- `n`: clear all skills
+- `a`: enable System skills and select all valid skills
+- `n`: disable System skills and clear all skills
 
-Skills are listed by folder name in filename order. Existing enabled skills are preselected by reading symlinks from `<codex_dir_path>/skills`.
+When `skills_path` is configured, skills from source directories are listed below System skills in filename order. Existing enabled skills are preselected by reading symlinks from `<codex_dir_path>/skills`.
 
 After confirmation, the script reconciles `<codex_dir_path>/skills`:
 

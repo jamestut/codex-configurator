@@ -56,6 +56,7 @@ class CodexState:
     multi_agent_enabled: bool
     selected_extra_instruction_files: Tuple[str, ...] = ()
 
+    system_skills_enabled: bool = True
 
 @dataclass(frozen=True)
 class Selection:
@@ -63,6 +64,7 @@ class Selection:
     multi_agent_enabled: bool
     skills: List[Skill]
     extra_instructions: List[ExtraInstruction]
+    system_skills_enabled: bool
 
 
 def parse_args() -> argparse.Namespace:
@@ -214,10 +216,11 @@ def load_skills(skills_dir: Optional[Path]) -> List[Skill]:
 
 def parse_toml_state(config_toml_path: Path) -> CodexState:
     if not config_toml_path.is_file():
-        return CodexState(model_name=None, multi_agent_enabled=False)
+        return CodexState(model_name=None, multi_agent_enabled=False, system_skills_enabled=True)
 
     model_name: Optional[str] = None
     multi_agent_enabled = False
+    system_skills_enabled = True
     current_section: Optional[str] = None
 
     for raw_line in config_toml_path.read_text(encoding="utf-8").splitlines():
@@ -243,10 +246,15 @@ def parse_toml_state(config_toml_path: Path) -> CodexState:
             parsed = parse_toml_bool(value)
             if parsed is not None:
                 multi_agent_enabled = parsed
+        elif current_section == "skills.bundled" and key == "enabled":
+            parsed = parse_toml_bool(value)
+            if parsed is not None:
+                system_skills_enabled = parsed
 
     return CodexState(
         model_name=model_name,
         multi_agent_enabled=multi_agent_enabled,
+        system_skills_enabled=system_skills_enabled,
     )
 
 
@@ -257,6 +265,7 @@ def load_json_state(state_json_path: Path, codex_state: CodexState) -> CodexStat
         selected_extra_instruction_files=load_selected_extra_instruction_files(
             state_json_path
         ),
+        system_skills_enabled=codex_state.system_skills_enabled,
     )
 
 
@@ -408,7 +417,7 @@ class BuilderUI:
         models: Sequence[ModelConfig],
         default_model_name: str,
         skills: Sequence[Skill],
-        show_skills: bool,
+        system_skills_enabled: bool,
         extra_instructions: Sequence[ExtraInstruction],
         multi_agent_enabled: bool,
         target_path: Path,
@@ -420,7 +429,7 @@ class BuilderUI:
             if model.name == default_model_name
         )
         self.skills = list(skills)
-        self.show_skills = show_skills
+        self.system_skills_enabled = system_skills_enabled
         self.extra_instructions = list(extra_instructions)
         self.multi_agent_enabled = multi_agent_enabled
         self.target_path = target_path
@@ -450,7 +459,7 @@ class BuilderUI:
                 if self.cursor == 0:
                     self._open_model_dialog(stdscr)
                     continue
-                if self.show_skills and self.cursor == self._skills_row_index():
+                if self.cursor == self._skills_row_index():
                     self._open_skills_dialog(stdscr)
                     continue
                 self._toggle_current_row()
@@ -464,6 +473,7 @@ class BuilderUI:
                         for instruction in self.extra_instructions
                         if instruction.selected
                     ],
+                    system_skills_enabled=self.system_skills_enabled,
                 )
             if key in (curses.KEY_UP, ord("k"), ord("K")):
                 self.cursor = max(0, self.cursor - 1)
@@ -489,7 +499,7 @@ class BuilderUI:
         return 2
 
     def _extra_row_start(self) -> int:
-        return 3 if self.show_skills else 2
+        return 3
 
     def _page_size(self, stdscr: "curses._CursesWindow") -> int:
         height, width = stdscr.getmaxyx()
@@ -526,12 +536,14 @@ class BuilderUI:
             f"Model: {model.name} (press Enter to search)",
             f"[{'x' if self.multi_agent_enabled else ' '}] Enable multi agent",
         ]
-        if self.show_skills:
+        if self.skills:
             selected_skill_count = sum(skill.selected for skill in self.skills)
             rows.append(
                 f"Skills: {selected_skill_count}/{len(self.skills)} selected "
                 "(press Enter to manage)"
             )
+        else:
+            rows.append("Skills: (press Enter to manage)")
         for instruction in self.extra_instructions:
             marker = "x" if instruction.selected else " "
             rows.append(f"[{marker}] {instruction.index}. {instruction.title}")
@@ -588,6 +600,7 @@ class BuilderUI:
 
     def _open_skills_dialog(self, stdscr: "curses._CursesWindow") -> None:
         selected_names = {skill.name for skill in self.skills if skill.selected}
+        system_skills_on = self.system_skills_enabled
         active_position = 0
         offset = 0
 
@@ -597,35 +610,42 @@ class BuilderUI:
                 active_position=active_position,
                 offset=offset,
                 selected_names=selected_names,
+                system_skills_on=system_skills_on,
             )
             key = stdscr.getch()
 
             if key in (ord("q"), ord("Q"), 27):
                 return
             if key in (curses.KEY_ENTER, 10, 13):
+                self.system_skills_enabled = system_skills_on
                 for skill in self.skills:
                     skill.selected = skill.name in selected_names
                 return
-            if key in (curses.KEY_UP, ord("k"), ord("K")) and self.skills:
+            total_items = len(self.skills) + 1
+            if key in (curses.KEY_UP, ord("k"), ord("K")):
                 active_position = max(0, active_position - 1)
-            elif key in (curses.KEY_DOWN, ord("j"), ord("J")) and self.skills:
-                active_position = min(len(self.skills) - 1, active_position + 1)
-            elif key == curses.KEY_PPAGE and self.skills:
+            elif key in (curses.KEY_DOWN, ord("j"), ord("J")):
+                active_position = min(total_items - 1, active_position + 1)
+            elif key == curses.KEY_PPAGE:
                 active_position = max(0, active_position - self._dialog_page_size(stdscr))
-            elif key == curses.KEY_NPAGE and self.skills:
                 active_position = min(
-                    len(self.skills) - 1,
+                    total_items - 1,
                     active_position + self._dialog_page_size(stdscr),
                 )
-            elif key == ord(" ") and self.skills:
-                skill_name = self.skills[active_position].name
-                if skill_name in selected_names:
-                    selected_names.remove(skill_name)
+            elif key == ord(" "):
+                if active_position == 0:
+                    system_skills_on = not system_skills_on
                 else:
-                    selected_names.add(skill_name)
+                    skill_name = self.skills[active_position - 1].name
+                    if skill_name in selected_names:
+                        selected_names.remove(skill_name)
+                    else:
+                        selected_names.add(skill_name)
             elif key in (ord("a"), ord("A")):
+                system_skills_on = True
                 selected_names = {skill.name for skill in self.skills}
             elif key in (ord("n"), ord("N")):
+                system_skills_on = False
                 selected_names = set()
 
     def _filtered_model_indexes(self, query: str) -> List[int]:
@@ -707,21 +727,20 @@ class BuilderUI:
         active_position: int,
         offset: int,
         selected_names: set[str],
+        system_skills_on: bool,
     ) -> int:
         self._draw(stdscr)
         height, width = stdscr.getmaxyx()
 
         page_size = self._dialog_page_size(stdscr)
-        offset = min(offset, max(0, len(self.skills) - page_size))
-        if self.skills:
-            if active_position < offset:
-                offset = active_position
-            elif active_position >= offset + page_size:
-                offset = active_position - page_size + 1
-        else:
-            offset = 0
+        total_items = len(self.skills) + 1
+        offset = min(offset, max(0, total_items - page_size))
+        if active_position < offset:
+            offset = active_position
+        elif active_position >= offset + page_size:
+            offset = active_position - page_size + 1
 
-        list_rows = max(1, min(page_size, len(self.skills) or 1))
+        list_rows = max(1, min(page_size, total_items))
         max_dialog_height = max(6, height - 2)
         max_dialog_width = max(20, width - 2)
         dialog_height = min(max_dialog_height, max(8, list_rows + 6))
@@ -743,25 +762,29 @@ class BuilderUI:
         )
 
         list_top = 4
-        if self.skills:
-            for row in range(list_rows):
-                skill_position = offset + row
-                if skill_position >= len(self.skills):
-                    break
-                skill = self.skills[skill_position]
+        for row in range(list_rows):
+            item_position = offset + row
+            if item_position >= total_items:
+                break
+            if item_position == 0:
+                marker = "x" if system_skills_on else " "
+                line = f"[{marker}] System skills"
+            else:
+                skill = self.skills[item_position - 1]
                 marker = "x" if skill.name in selected_names else " "
                 line = f"[{marker}] {skill.name}"
-                attr = (
-                    self.highlight_attr
-                    if skill_position == active_position
-                    else curses.A_NORMAL
-                )
-                dialog.addnstr(list_top + row, 2, line, dialog_width - 4, attr)
-        else:
-            dialog.addnstr(list_top, 2, "No valid skills found.", dialog_width - 4)
+            attr = (
+                self.highlight_attr
+                if item_position == active_position
+                else curses.A_NORMAL
+            )
+            dialog.addnstr(list_top + row, 2, line, dialog_width - 4, attr)
 
         selected_count = len(selected_names)
-        status = f"{selected_count}/{len(self.skills)} skills selected"
+        parts = [f"System skills: {'on' if system_skills_on else 'off'}"]
+        if self.skills:
+            parts.append(f"{selected_count}/{len(self.skills)} skills selected")
+        status = " | ".join(parts)
         dialog.addnstr(dialog_height - 2, 2, status, dialog_width - 4)
         dialog.refresh()
         return offset
@@ -793,14 +816,13 @@ class BuilderUI:
             instruction.selected for instruction in self.extra_instructions
         )
         footer_parts: List[str] = []
-        if self.show_skills:
-            if self.skills:
-                selected_skill_count = sum(skill.selected for skill in self.skills)
-                footer_parts.append(
-                    f"{selected_skill_count}/{len(self.skills)} skills selected"
-                )
-            else:
-                footer_parts.append("No skills found")
+        sys_status = "on" if self.system_skills_enabled else "off"
+        footer_parts.append(f"System skills: {sys_status}")
+        if self.skills:
+            selected_skill_count = sum(skill.selected for skill in self.skills)
+            footer_parts.append(
+                f"{selected_skill_count}/{len(self.skills)} skills selected"
+            )
         if self.extra_instructions:
             footer_parts.append(
                 f"{selected_count}/{len(self.extra_instructions)} extras selected"
@@ -852,7 +874,7 @@ def choose_selection(
             models=config.models,
             default_model_name=default_model.name,
             skills=skills,
-            show_skills=config.skills_path is not None,
+            system_skills_enabled=codex_state.system_skills_enabled,
             extra_instructions=extra_instructions,
             multi_agent_enabled=codex_state.multi_agent_enabled,
             target_path=target_path,
@@ -922,7 +944,8 @@ def update_codex_config(
     base_url: str,
     env_key: Optional[str],
     multi_agent_enabled: bool,
-) -> None:
+    system_skills_enabled: bool,
+ ) -> None:
     if config_toml_path.is_file():
         lines = config_toml_path.read_text(encoding="utf-8").splitlines()
     else:
@@ -962,6 +985,13 @@ def update_codex_config(
         "features",
         "multi_agent",
         f"multi_agent = {'true' if multi_agent_enabled else 'false'}",
+    )
+
+    lines = upsert_section_key(
+        lines,
+        "skills.bundled",
+        "enabled",
+        f"enabled = {'true' if system_skills_enabled else 'false'}",
     )
 
     content = "\n".join(lines).rstrip("\n")
@@ -1143,6 +1173,7 @@ def main() -> int:
         base_url=selection.model.base_url,
         env_key=selection.model.env_key,
         multi_agent_enabled=selection.multi_agent_enabled,
+        system_skills_enabled=selection.system_skills_enabled,
     )
     if config.skills_path is not None:
         sync_selected_skills(enabled_skills_dir, selection.skills)
