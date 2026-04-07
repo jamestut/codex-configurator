@@ -730,8 +730,6 @@ class BuilderUI:
         else:
             dialog.addnstr(list_top, 2, "No models match your search.", dialog_width - 4)
 
-        status = f"{len(filtered_indexes)} match{'es' if len(filtered_indexes) != 1 else ''}"
-        dialog.addnstr(dialog_height - 2, 2, status, dialog_width - 4)
         dialog.refresh()
         return offset
 
