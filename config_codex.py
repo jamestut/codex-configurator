@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-
 SECTION_HEADER_RE = re.compile(r"^\s*\[([^\]]+)\]\s*(?:#.*)?$")
 STATE_SELECTED_EXTRA_FILES_KEY = "selected_extra_instruction_files"
 
@@ -225,12 +224,16 @@ def parse_toml_state(config_toml_path: Path) -> CodexState:
         return CodexState(model_name=None, multi_agent_enabled=False,
         system_skills_enabled=True, memories_enabled=False)
 
-    model_name: Optional[str] = None
-    multi_agent_enabled = False
-    system_skills_enabled = True
-    memories_use_memories: Optional[bool] = None
-    memories_generate_memories: Optional[bool] = None
-    features_memories: Optional[bool] = None
+    _PARSE_DISPATCH: dict[Tuple[Optional[str], str], type] = {
+        (None, "model"): parse_toml_string,
+        ("features", "multi_agent"): parse_toml_bool,
+        ("skills.bundled", "enabled"): parse_toml_bool,
+        ("memories", "use_memories"): parse_toml_bool,
+        ("memories", "generate_memories"): parse_toml_bool,
+        ("features", "memories"): parse_toml_bool,
+    }
+
+    parsed_values: dict[Tuple[Optional[str], str], str | bool] = {}
     current_section: Optional[str] = None
 
     for raw_line in config_toml_path.read_text(encoding="utf-8").splitlines():
@@ -248,36 +251,21 @@ def parse_toml_state(config_toml_path: Path) -> CodexState:
             continue
 
         key, value = key_value
-        if current_section is None and key == "model":
-            parsed = parse_toml_string(value)
-            if parsed is not None:
-                model_name = parsed
-        elif current_section == "features" and key == "multi_agent":
-            parsed = parse_toml_bool(value)
-            if parsed is not None:
-                multi_agent_enabled = parsed
-        elif current_section == "skills.bundled" and key == "enabled":
-            parsed = parse_toml_bool(value)
-            if parsed is not None:
-                system_skills_enabled = parsed
-        elif current_section == "memories" and key == "use_memories":
-            parsed = parse_toml_bool(value)
-            if parsed is not None:
-                memories_use_memories = parsed
-        elif current_section == "memories" and key == "generate_memories":
-            parsed = parse_toml_bool(value)
-            if parsed is not None:
-                memories_generate_memories = parsed
-        elif current_section == "features" and key == "memories":
-            parsed = parse_toml_bool(value)
-            if parsed is not None:
-                features_memories = parsed
+        parser = _PARSE_DISPATCH.get((current_section, key))
+        if parser is not None:
+            result = parser(value)
+            if result is not None:
+                parsed_values[(current_section, key)] = result
 
     return CodexState(
-        model_name=model_name,
-        multi_agent_enabled=multi_agent_enabled,
-        system_skills_enabled=system_skills_enabled,
-        memories_enabled=all((memories_use_memories, memories_generate_memories, features_memories))
+        model_name=parsed_values.get((None, "model")),
+        multi_agent_enabled=parsed_values.get(("features", "multi_agent"), False),
+        system_skills_enabled=parsed_values.get(("skills.bundled", "enabled"), True),
+        memories_enabled=all((
+            parsed_values.get(("memories", "use_memories")),
+            parsed_values.get(("memories", "generate_memories")),
+            parsed_values.get(("features", "memories")),
+        ))
     )
 
 
