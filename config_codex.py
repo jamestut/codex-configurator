@@ -23,6 +23,7 @@ STATE_SELECTED_EXTRA_FILES_KEY = "selected_extra_instruction_files"
 @dataclass(frozen=True)
 class ModelConfig:
     name: str
+    support_apply_patch: bool
     context_window: Optional[int] = None
     base_url: str = ""
     env_key: Optional[str] = None
@@ -123,12 +124,15 @@ def parse_config(config_path: Path) -> AppConfig:
             raise SystemExit(f"Error: models[{index}] must be an object.")
 
         name = raw_model.get("name")
+        support_apply_patch = raw_model.get("support_apply_patch")
         context_window = raw_model.get("context_window")
         base_url = raw_model.get("base_url")
         env_key = raw_model.get("env_key")
 
         if not isinstance(name, str) or not name.strip():
             raise SystemExit(f"Error: models[{index}].name must be a non-empty string.")
+        if not isinstance(support_apply_patch, bool):
+            raise SystemExit(f"Error: models[{index}].support_apply_patch must be true or false.")
         if name in seen_names:
             raise SystemExit(f"Error: Duplicate model name '{name}' in config.json.")
         if context_window is not None:
@@ -155,6 +159,7 @@ def parse_config(config_path: Path) -> AppConfig:
         models.append(
             ModelConfig(
                 name=name,
+                support_apply_patch=support_apply_patch,
                 context_window=context_window,
                 base_url=base_url,
                 env_key=env_key,
@@ -888,6 +893,8 @@ def build_sections(
     selection: Selection,
 ) -> List[Path]:
     sections = [base_dir / "base_instructions" / "general.md"]
+    if not selection.model.support_apply_patch:
+        sections.append(base_dir / "base_instructions" / "apply_patch.md")
     if selection.multi_agent_enabled:
         sections.append(base_dir / "base_instructions" / "multi_agent.md")
     sections.extend(instruction.path for instruction in selection.extra_instructions)
