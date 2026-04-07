@@ -25,7 +25,7 @@ class ModelConfig:
     support_apply_patch: bool
     context_window: Optional[int] = None
     base_url: str = ""
-    env_key: Optional[str] = None
+    bearer_token: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -127,7 +127,7 @@ def parse_config(config_path: Path) -> AppConfig:
         support_apply_patch = raw_model.get("support_apply_patch")
         context_window = raw_model.get("context_window")
         base_url = raw_model.get("base_url")
-        env_key = raw_model.get("env_key")
+        bearer_token = raw_model.get("bearer_token")
 
         if not isinstance(name, str) or not name.strip():
             raise SystemExit(f"Error: models[{index}].name must be a non-empty string.")
@@ -149,12 +149,12 @@ def parse_config(config_path: Path) -> AppConfig:
                 f"Error: models[{index}].base_url must be a non-empty string."
             )
         base_url = base_url.strip()
-        if env_key is not None:
-            if not isinstance(env_key, str) or not env_key.strip():
+        if bearer_token is not None:
+            if not isinstance(bearer_token, str) or not bearer_token.strip():
                 raise SystemExit(
-                    f"Error: models[{index}].env_key must be a non-empty string when provided."
+                    f"Error: models[{index}].bearer_token must be a non-empty string when provided."
                 )
-            env_key = env_key.strip()
+            bearer_token = bearer_token.strip()
 
         models.append(
             ModelConfig(
@@ -162,7 +162,7 @@ def parse_config(config_path: Path) -> AppConfig:
                 support_apply_patch=support_apply_patch,
                 context_window=context_window,
                 base_url=base_url,
-                env_key=env_key,
+                bearer_token=bearer_token,
             )
         )
         seen_names.add(name)
@@ -1045,7 +1045,7 @@ def update_codex_config(
     model_name: str,
     context_window: Optional[int],
     base_url: str,
-    env_key: Optional[str],
+    bearer_token: Optional[str],
     multi_agent_enabled: bool,
     system_skills_enabled: bool,
     memories_enabled: bool,
@@ -1088,14 +1088,14 @@ def update_codex_config(
         "base_url",
         f'base_url = "{escape_toml_string(base_url)}"',
     )
-    if env_key is None:
-        lines = remove_section_key(lines, "model_providers.managed", "env_key")
+    if bearer_token is None:
+        lines = remove_section_key(lines, "model_providers.managed", "experimental_bearer_token")
     else:
         lines = upsert_section_key(
             lines,
             "model_providers.managed",
-            "env_key",
-            f'env_key = "{escape_toml_string(env_key)}"',
+            "experimental_bearer_token",
+            f'experimental_bearer_token = "{escape_toml_string(bearer_token)}"',
         )
     lines = upsert_section_key(
         lines,
@@ -1308,7 +1308,7 @@ def main() -> int:
         model_name=selection.model.name,
         context_window=selection.model.context_window,
         base_url=selection.model.base_url,
-        env_key=selection.model.env_key,
+        bearer_token=selection.model.bearer_token,
         multi_agent_enabled=selection.multi_agent_enabled,
         system_skills_enabled=selection.system_skills_enabled,
         memories_enabled=selection.memories_enabled,

@@ -53,7 +53,7 @@ Create `config.json` from `config.example.json` and edit it as needed:
       "name": "gpt-5.4",
       "support_apply_patch": true,
       "base_url": "https://litellm-proxy.example.net",
-      "env_key": "OPENAI_API_KEY"
+      "bearer_token": "sk-api-key-here"
     },
     {
       "name": "gemini-3.1-pro-preview",
@@ -72,7 +72,7 @@ Rules:
 - `name` and `base_url` are required for each model.
 - `support_apply_patch` is required for each model (set to `true` for GPT models, `false` otherwise).
 - `context_window` is optional.
-- `env_key` is optional.
+- `bearer_token` is optional.
 
 When `skills_path` is configured, the script scans its immediate child directories and treats a folder as a valid skill only when it contains `SKILL.md`.
 
