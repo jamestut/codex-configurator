@@ -57,6 +57,7 @@ class CodexState:
     multi_agent_enabled: bool
     selected_extra_instruction_files: Tuple[str, ...] = ()
     system_skills_enabled: bool = True
+    memories_enabled: bool = False
 
 @dataclass(frozen=True)
 class Selection:
@@ -65,6 +66,7 @@ class Selection:
     skills: List[Skill]
     extra_instructions: List[ExtraInstruction]
     system_skills_enabled: bool
+    memories_enabled: bool
 
 
 def parse_args() -> argparse.Namespace:
@@ -220,11 +222,15 @@ def load_skills(skills_dir: Optional[Path]) -> List[Skill]:
 
 def parse_toml_state(config_toml_path: Path) -> CodexState:
     if not config_toml_path.is_file():
-        return CodexState(model_name=None, multi_agent_enabled=False, system_skills_enabled=True)
+        return CodexState(model_name=None, multi_agent_enabled=False,
+        system_skills_enabled=True, memories_enabled=False)
 
     model_name: Optional[str] = None
     multi_agent_enabled = False
     system_skills_enabled = True
+    memories_use_memories: Optional[bool] = None
+    memories_generate_memories: Optional[bool] = None
+    features_memories: Optional[bool] = None
     current_section: Optional[str] = None
 
     for raw_line in config_toml_path.read_text(encoding="utf-8").splitlines():
@@ -254,11 +260,24 @@ def parse_toml_state(config_toml_path: Path) -> CodexState:
             parsed = parse_toml_bool(value)
             if parsed is not None:
                 system_skills_enabled = parsed
+        elif current_section == "memories" and key == "use_memories":
+            parsed = parse_toml_bool(value)
+            if parsed is not None:
+                memories_use_memories = parsed
+        elif current_section == "memories" and key == "generate_memories":
+            parsed = parse_toml_bool(value)
+            if parsed is not None:
+                memories_generate_memories = parsed
+        elif current_section == "features" and key == "memories":
+            parsed = parse_toml_bool(value)
+            if parsed is not None:
+                features_memories = parsed
 
     return CodexState(
         model_name=model_name,
         multi_agent_enabled=multi_agent_enabled,
         system_skills_enabled=system_skills_enabled,
+        memories_enabled=all((memories_use_memories, memories_generate_memories, features_memories))
     )
 
 
@@ -270,6 +289,7 @@ def load_json_state(state_json_path: Path, codex_state: CodexState) -> CodexStat
             state_json_path
         ),
         system_skills_enabled=codex_state.system_skills_enabled,
+        memories_enabled=codex_state.memories_enabled,
     )
 
 
@@ -425,6 +445,7 @@ class BuilderUI:
         extra_instructions: Sequence[ExtraInstruction],
         multi_agent_enabled: bool,
         target_path: Path,
+        memories_enabled: bool,
     ) -> None:
         self.models = list(models)
         self.model_index = next(
@@ -440,6 +461,7 @@ class BuilderUI:
         self.cursor = 0
         self.offset = 0
         self.highlight_attr = curses.A_REVERSE
+        self.memories_enabled = memories_enabled
 
     def run(self) -> Optional[Selection]:
         return curses.wrapper(self._main)
@@ -463,6 +485,9 @@ class BuilderUI:
                 if self.cursor == 0:
                     self._open_model_dialog(stdscr)
                     continue
+                if self.cursor == self._features_row_index():
+                    self._open_features_dialog(stdscr)
+                    continue
                 if self.cursor == self._skills_row_index():
                     self._open_skills_dialog(stdscr)
                     continue
@@ -478,6 +503,7 @@ class BuilderUI:
                         if instruction.selected
                     ],
                     system_skills_enabled=self.system_skills_enabled,
+                    memories_enabled=self.memories_enabled,
                 )
             if key in (curses.KEY_UP, ord("k"), ord("K")):
                 self.cursor = max(0, self.cursor - 1)
@@ -499,8 +525,11 @@ class BuilderUI:
     def _row_count(self) -> int:
         return self._extra_row_start() + len(self.extra_instructions)
 
+    def _features_row_index(self) -> int:
+        return 1
+
     def _skills_row_index(self) -> int:
-        return 2
+        return 2 if self.skills else 2
 
     def _extra_row_start(self) -> int:
         return 3
@@ -527,18 +556,16 @@ class BuilderUI:
         return len(self._header_lines(width))
 
     def _toggle_current_row(self) -> None:
-        if self.cursor == 1:
-            self.multi_agent_enabled = not self.multi_agent_enabled
-            return
         if self.cursor >= self._extra_row_start():
             instruction = self.extra_instructions[self.cursor - self._extra_row_start()]
             instruction.selected = not instruction.selected
 
     def _rows(self) -> List[str]:
         model = self.models[self.model_index]
+        enabled_count = sum([self.multi_agent_enabled, self.memories_enabled])
         rows = [
             f"Model: {model.name} (press Enter to search)",
-            f"[{'x' if self.multi_agent_enabled else ' '}] Enable multi agent",
+            f"Features: {enabled_count}/2 enabled (press Enter to manage)",
         ]
         if self.skills:
             selected_skill_count = sum(skill.selected for skill in self.skills)
@@ -660,6 +687,86 @@ class BuilderUI:
             elif key in (ord("n"), ord("N")):
                 system_skills_on = False
                 selected_names = set()
+
+    def _open_features_dialog(self, stdscr: "curses._CursesWindow") -> None:
+        multi_agent_on = self.multi_agent_enabled
+        memories_on = self.memories_enabled
+        active_position = 0
+
+        while True:
+            self._draw_features_dialog(
+                stdscr=stdscr,
+                active_position=active_position,
+                multi_agent_on=multi_agent_on,
+                memories_on=memories_on,
+            )
+            key = stdscr.getch()
+
+            if key in (ord("q"), ord("Q"), 27):
+                return
+            if key in (curses.KEY_ENTER, 10, 13, ord(" ")):
+                if active_position == 0:
+                    multi_agent_on = not multi_agent_on
+                else:
+                    memories_on = not memories_on
+            elif key in (curses.KEY_UP, ord("k"), ord("K")):
+                active_position = max(0, active_position - 1)
+            elif key in (curses.KEY_DOWN, ord("j"), ord("J")):
+                active_position = min(1, active_position + 1)
+            elif key in (ord("s"), ord("S")):
+                self.multi_agent_enabled = multi_agent_on
+                self.memories_enabled = memories_on
+                return
+
+    def _draw_features_dialog(
+        self,
+        stdscr: "curses._CursesWindow",
+        active_position: int,
+        multi_agent_on: bool,
+        memories_on: bool,
+    ) -> None:
+        self._draw(stdscr)
+        height, width = stdscr.getmaxyx()
+
+        dialog_height = 8
+        dialog_width = min(72, max(20, width - 2))
+        top = max(0, (height - dialog_height) // 2)
+        left = max(0, (width - dialog_width) // 2)
+
+        dialog = curses.newwin(dialog_height, dialog_width, top, left)
+        dialog.keypad(True)
+        dialog.erase()
+        dialog.box()
+
+        dialog.addnstr(1, 2, "Manage features", dialog_width - 4, curses.A_BOLD)
+        dialog.addnstr(
+            2,
+            2,
+            "Enter/Space toggle, s save, q/Esc cancel",
+            dialog_width - 4,
+        )
+
+        multi_agent_marker = "x" if multi_agent_on else " "
+        memories_marker = "x" if memories_on else " "
+
+        multi_agent_line = f"[{multi_agent_marker}] Enable multi agent"
+        memories_line = f"[{memories_marker}] Enable memories"
+
+        multi_agent_attr = (
+            self.highlight_attr if active_position == 0 else curses.A_NORMAL
+        )
+        memories_attr = (
+            self.highlight_attr if active_position == 1 else curses.A_NORMAL
+        )
+
+        dialog.addnstr(4, 2, multi_agent_line, dialog_width - 4, multi_agent_attr)
+        dialog.addnstr(5, 2, memories_line, dialog_width - 4, memories_attr)
+
+        enabled_count = sum([multi_agent_on, memories_on])
+        status = f"{enabled_count}/2 features enabled"
+        dialog.addnstr(dialog_height - 2, 2, status, dialog_width - 4)
+
+        dialog.refresh()
 
     def _filtered_model_indexes(self, query: str) -> List[int]:
         if not query:
@@ -883,6 +990,7 @@ def choose_selection(
             extra_instructions=extra_instructions,
             multi_agent_enabled=codex_state.multi_agent_enabled,
             target_path=target_path,
+            memories_enabled=codex_state.memories_enabled,
         ).run()
     except curses.error as exc:
         raise SystemExit(f"Error: Could not start the TUI: {exc}") from exc
@@ -952,7 +1060,8 @@ def update_codex_config(
     env_key: Optional[str],
     multi_agent_enabled: bool,
     system_skills_enabled: bool,
- ) -> None:
+    memories_enabled: bool,
+) -> None:
     if config_toml_path.is_file():
         lines = config_toml_path.read_text(encoding="utf-8").splitlines()
     else:
@@ -1012,6 +1121,26 @@ def update_codex_config(
         "skills.bundled",
         "enabled",
         f"enabled = {'true' if system_skills_enabled else 'false'}",
+    )
+
+    memories_value = 'true' if memories_enabled else 'false'
+    lines = upsert_section_key(
+        lines,
+        "memories",
+        "use_memories",
+        f"use_memories = {memories_value}",
+    )
+    lines = upsert_section_key(
+        lines,
+        "memories",
+        "generate_memories",
+        f"generate_memories = {memories_value}",
+    )
+    lines = upsert_section_key(
+        lines,
+        "features",
+        "memories",
+        f"memories = {memories_value}",
     )
 
     content = "\n".join(lines).rstrip("\n")
@@ -1194,6 +1323,7 @@ def main() -> int:
         env_key=selection.model.env_key,
         multi_agent_enabled=selection.multi_agent_enabled,
         system_skills_enabled=selection.system_skills_enabled,
+        memories_enabled=selection.memories_enabled,
     )
     if config.skills_path is not None:
         sync_selected_skills(enabled_skills_dir, selection.skills)

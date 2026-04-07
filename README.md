@@ -15,8 +15,6 @@ python3 config_codex.py
 Controls:
 
 - Up/down: move between rows
-- Enter on `Model`: open the searchable model picker
-- Enter on `Skills`: open the skills dialog (always visible)
 - Space: toggle options
 - Enter: toggle options or open submenu
 - `s`: confirm and save
@@ -90,9 +88,25 @@ Each extra instruction file must start with a heading subject line on the first 
 
 That heading text is what appears in the checklist. Files are listed in filename order.
 
+## Features
+
+The main screen shows a `Features` row between `Model` and `Skills`.
+
+Press Enter on that row to open the features dialog. Inside the dialog:
+
+- "Enable multi agent" is the first item
+- "Enable memories" is the second item
+- Enter / Space: toggle the highlighted feature
+- `s`: save the feature selection and return
+- `q` or `Esc`: cancel changes and return
+
+When enabled, "Enable multi agent" adds `base_instructions/multi_agent.md` to the output and sets `[features].multi_agent = true` in config.toml.
+
+When enabled, "Enable memories" sets three TOML settings to `true` in unison: `memories.use_memories`, `memories.generate_memories`, and `features.memories`. The initial state is `true` only if all three settings exist and are `true` in the existing config.toml; otherwise it defaults to `false`.
+
 ## Skills
 
-The main screen always shows a `Skills` row between `Enable multi agent` and the extra-instruction checklist.
+The main screen always shows a `Skills` row after the `Features` row.
 
 Press Enter on that row to open the skills dialog. Inside the dialog:
 
@@ -118,28 +132,13 @@ The generated `AGENTS.md` always uses this order:
 
 1. `base_instructions/general.md`
 2. `base_instructions/apply_patch.md` only when the model has `support_apply_patch: false`
-3. `base_instructions/multi_agent.md` only when `Enable multi agent` is checked
+3. `base_instructions/multi_agent.md` only when multi-agent is enabled in the Features dialog
 4. Checked files from `extra_instructions/`
 
 ## Codex config sync
 
 After confirmation, the script updates `<codex_dir_path>/config.toml`:
 
-- top-level `model` is set to the selected model
-- top-level `review_model`, `[memories].extract_model`, and `[memories].consolidation_model` are synced to the selected model
-- top-level `model_context_window` is set when the chosen model defines `context_window`
-- top-level `model_context_window` is removed when the chosen model does not define it
-- top-level `model_provider` is set to `"managed"`
-- `[model_providers.managed]` is created or updated with `name = "Managed Provider"` and the selected model's `base_url`
-- `[model_providers.managed].env_key` is set when configured for the selected model and removed otherwise
-- `[features].multi_agent` is set to `true` or `false`
-
 When `config.toml` does not exist yet, the script creates a minimal one with those settings.
 
-The initial UI defaults are loaded from `<codex_dir_path>/config.toml`:
-
-- selected model uses top-level `model`
-- if that model is not present in `config.json`, the first configured model is used
-- `Enable multi agent` uses `[features].multi_agent`, defaulting to `false` when missing
-
-Skill defaults are loaded from existing symlinks in `<codex_dir_path>/skills`.
+The initial UI defaults are loaded from `<codex_dir_path>/config.toml`.
