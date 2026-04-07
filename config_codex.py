@@ -56,7 +56,6 @@ class CodexState:
     model_name: Optional[str]
     multi_agent_enabled: bool
     selected_extra_instruction_files: Tuple[str, ...] = ()
-
     system_skills_enabled: bool = True
 
 @dataclass(frozen=True)
