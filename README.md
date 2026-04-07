@@ -97,8 +97,8 @@ The main screen always shows a `Skills` row between `Enable multi agent` and the
 Press Enter on that row to open the skills dialog. Inside the dialog:
 
 - "System skills" is always the first item at the top of the dialog
-- Space: toggle the highlighted skill
-- Enter: save the skill selection and return
+- Enter / Space: toggle the highlighted skill
+- `s`: save the skill selection and return
 - `q` or `Esc`: cancel changes and return
 - `a`: enable System skills and select all valid skills
 - `n`: disable System skills and clear all skills

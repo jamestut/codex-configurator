@@ -622,10 +622,14 @@ class BuilderUI:
             if key in (ord("q"), ord("Q"), 27):
                 return
             if key in (curses.KEY_ENTER, 10, 13):
-                self.system_skills_enabled = system_skills_on
-                for skill in self.skills:
-                    skill.selected = skill.name in selected_names
-                return
+                if active_position == 0:
+                    system_skills_on = not system_skills_on
+                else:
+                    skill_name = self.skills[active_position - 1].name
+                    if skill_name in selected_names:
+                        selected_names.remove(skill_name)
+                    else:
+                        selected_names.add(skill_name)
             total_items = len(self.skills) + 1
             if key in (curses.KEY_UP, ord("k"), ord("K")):
                 active_position = max(0, active_position - 1)
@@ -646,6 +650,11 @@ class BuilderUI:
                         selected_names.remove(skill_name)
                     else:
                         selected_names.add(skill_name)
+            elif key in (ord("s"), ord("S")):
+                self.system_skills_enabled = system_skills_on
+                for skill in self.skills:
+                    skill.selected = skill.name in selected_names
+                return
             elif key in (ord("a"), ord("A")):
                 system_skills_on = True
                 selected_names = {skill.name for skill in self.skills}
@@ -762,7 +771,7 @@ class BuilderUI:
         dialog.addnstr(
             2,
             2,
-            "Space toggle, a all, n none, Enter save, q/Esc cancel",
+            "Enter/Space toggle, a all, n none, s save, q/Esc cancel",
             dialog_width - 4,
         )
 
