@@ -962,6 +962,19 @@ def update_codex_config(
         lines = []
 
     lines = upsert_top_level_key(lines, "model", f'model = "{escape_toml_string(model_name)}"')
+    lines = upsert_top_level_key(lines, "review_model", f'review_model = "{escape_toml_string(model_name)}"')
+    lines = upsert_section_key(
+        lines,
+        "memories",
+        "extract_model",
+        f'extract_model = "{escape_toml_string(model_name)}"',
+    )
+    lines = upsert_section_key(
+        lines,
+        "memories",
+        "consolidation_model",
+        f'consolidation_model = "{escape_toml_string(model_name)}"',
+    )
     if context_window is None:
         lines = remove_top_level_key(lines, "model_context_window")
     else:

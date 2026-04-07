@@ -126,6 +126,7 @@ The generated `AGENTS.md` always uses this order:
 After confirmation, the script updates `<codex_dir_path>/config.toml`:
 
 - top-level `model` is set to the selected model
+- top-level `review_model`, `[memories].extract_model`, and `[memories].consolidation_model` are synced to the selected model
 - top-level `model_context_window` is set when the chosen model defines `context_window`
 - top-level `model_context_window` is removed when the chosen model does not define it
 - top-level `model_provider` is set to `"managed"`
