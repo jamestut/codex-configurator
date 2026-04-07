@@ -1,4 +1,4 @@
-# apply_patch Reference
+# apply_patch
 
 ## Syntax Recap
 
@@ -47,6 +47,8 @@ The tool searches for the *concatenation* of context + removal lines in the file
 
 **Avoid `@@` headers unless needed** — They add a matching requirement that often fails. Plain context lines (3 before, 3 after) are usually sufficient and more reliable.
 
+**`@@` text must come from the target file** — The tool searches for `@@` header text as a literal string in the file you’re patching. It is *not* a label or qualifier you can invent. Never use `@@` text that doesn’t appear in the file you’re patching.
+
 **For insertions (no removals), use a single `-` + `+` swap** — To insert a line, remove an adjacent line with `-` and re-add it with `+` plus your new lines:
 ```
  existing_line
@@ -68,6 +70,8 @@ Instead:
 - **Don't guess at indentation.** Always `cat -An` the actual file first.
 - **Don't chain multiple `@@` headers hoping they act as nested qualifiers.** They're just additional literal-text matches that all must succeed.
 - **Don't try to patch with only context and no `+`/`-` lines.** It's a no-op that silently "succeeds."
+- **Don't use Python scripts to manually patch files.** Always use `apply_patch` directly.
+- **Don't use `sed` to patch files.** Prefer the `apply_patch` tool for all file modifications; reserve `sed` for viewing file regions only.
 
 ## Workflow for Tricky Patches
 
